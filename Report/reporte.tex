@@ -1,0 +1,806 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage{graphicx}
+\usepackage[spanish]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{multicol}
+
+\title{Planificador de tareas para un sistema hidrop\'onico automatizado programado en C++}
+\author{Mauricio Yamil Tame Soria}
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introducci\'on}
+Se tiene un sistema hidrop\'onico donde se busca automatizar los procesos que mantengan las condiciones \'optimas para el cultivo. Los procesos consisten en regular, 
+mediante actuadores, las 
+variables del entorno: temperatura ambiente, temperatura en la soluci\'on de riego, humedad relativa en el ambiente, humedad relativa en la tierra y el ph de la soluci\'on 
+de riego. Para mantener controladas las variables, es necesario el monitoreo de las mismas mediante muestreos. Dichas variables son de car\'acter 
+cuantitativo, cuando se 
+haga referencia a ellas ser\'an n\'umeros 
+reales (enteros con decimal). El monitoreo consiste en hacer muestreos de las variables peri\'odicamente. Los valores 
+monitoreados, igual que toda la informaci\'on del sistema, son registrados en una base de datos. En los cultivos hidrop\'onicos, la planta se nutre directamente del 
+riego por lo que es importante mantener h\'umeda la ra\'iz; se proponen dos formas de riego para cumplir esta condici\'on. La automatizaci\'on del sistema se lleva acabo 
+con el planificador de tareas, 
+tambi\'en nos referiremos a \'el como ''scheduller''. El planificador de tareas es un programa que mantiene los vegetales regados y procesa las variables de entorno para 
+llevar acabo los procesos que 
+las mantengan en el rango ideal. Cada cultivo tiene un rago ideal de ph, temperatura ambiente, humedad ambiente y temperatura en la soluci\'on de riego; definidos 
+en la 
+base de datos. El sistema hidrop\'onico est\'a montado en un microprocesador ''Pcduino'', los componentes (sensores y actuadores) del sistema est\'an 
+conectados a los pines de la tarjeta. El planificador de tareas, igual que todos los programas, fue programado y compilado en el microprocesador; los c\'odigos se 
+encuentran en la carpeta principal del proyecto:
+
+\begin{verbatim}
+/home/Hidroponia
+\end{verbatim}
+
+A lo largo del 
+texto se tratar\'an los siguientes temas: configuraci\'on del microprocesador, m\'etodos de muestreo, procesos para regular las variables del entorno, la base de datos 
+del sistema, la estructura y 
+funcionamiento del 
+''scheduller'', pruebas de hardware, los problemas del multithreading y sus soluciones, administraci\'on de los sistemas, estad\'isticas con las variables de entorno, una 
+interfaz de usuario y las \'areas de mejora del proyecto.
+
+\section{Configuraci\'on del Pcduino}
+La configuraci\'on del Pcduino consiste en la instalaci\'on de un sistema operativo, en este caso una distribuci\'on de Linux (lubuntu), y un conjunto 
+de programas que nos permiten montar el servidor y administrar la base de datos. Para la instalci\'on del sistema operativo lubuntu se deben obtener los archivos del 
+kernel y el sistema operativo; se encuentran descargables 
+en la 
+p\'agina del distribuidor del Pcduino: 
+\begin{verbatim}
+ http://www.linksprite.com 
+\end{verbatim}
+Una vez descargados los archivos se debe grabar el archivo imagen del kernel en una microSD con la ayuda 
+del comando 
+\verb|dd| que provee Linux y guardar el archivo \verb|ubuntu.iso| en una 
+USB. Cuando est\'e la imagen del kernel grabada en la microSD, con el Pcduino apagado, se inserta la miscroSD y se conecta el Pcduino a la corriente. Uno de los leds 
+parpadea mientras se realiza la instalaci\'on del kernel; cuando deje de parpadear el led se debe retirar la microSD y presionar el bot\'on ''reset'' del duino. Al 
+reiniciar el duino, se observa una pantalla pidiendo insertar una USB con la imagen del sistema; se inserta la USB con el archivo \verb|ubuntu.iso| y la instalaci\'on 
+del sistema operativo comenzar\'a a ejecutarse. Cuando termine el proceso se mostrar\'a un mensaje en la pantalla, se retira la USB y se reinicia el duino para 
+finalizar. Una vez instalado el sistema operativo, se necesita establecer una 
+contrase\~na; para esto se abre la l\'inea de comandos (Terminal) y se teclea:
+\begin{verbatim}
+sudo passwd
+\end{verbatim}
+ya establecida la contrase\~na se reinicia el Pcduino. Establecer la contrase\~na es importante pues de lo contrario se presentan problemas al momento de 
+instalar algunos paquetes. Para configurar la zona horaria, el tama\~no de la pantalla y otras 
+preferencias del sistema se ejecuta el comando:
+
+\begin{verbatim}
+ sudo board-config.sh 
+\end{verbatim}
+
+\subsection{Paquetes}
+Los programas necesarios 
+para el funcionamiento del servidor son Apache, Mysql para la base de datos, 
+php para la aplicaci\'on web (interfaz de usuario) y phpmyadmin para auxiliarnos con la base de 
+datos. 
+Todos los paquetes se instalaron desde la terminal usando el comando:
+\begin{verbatim}
+ sudo apt-get install nombre_del_paquete
+\end{verbatim}
+los nombres de los paquetes son:
+\begin{itemize}
+\item apache2
+\item php5
+\item libapache2-mod-php5
+\item mysql-server 
+\item mysql-client
+\item phpmyadmin 
+\item libmysqlcppconn-dev 
+\end{itemize}
+
+Antes de hacer la instalaci\'on de los paquetes se debe ejecutar el comando
+
+\begin{verbatim}
+ sudo apt-get update
+\end{verbatim}
+
+Una vez instalados los paquetes es necesario reiniciar el duino. Al reiniciar se nota que el servidor apache no 
+funciona; el error se debe a que no se crea la carpeta \verb|/var/log/apache2| al momento 
+de iniciar el sistema operativo. Una forma sencilla de reparar el ''bug'' es editar el archivo \verb|/etc/rc.local| 
+agregando las siguientes l\'ineas de c\'odigo:
+
+\begin{verbatim}
+ mkdir /var/log/apache2
+ apachectl restart
+\end{verbatim}
+
+La carpeta que contiene el 
+phpmyadmin se encuentra en \verb|/usr/share/phpmyadmin|; para acceder a ella del navegador, se debe 
+crear un link simb\'olico dentro de la carpeta del servidor. Para ello, se ejecuta la 
+siguiente l\'inea 
+de c\'odigo:
+\begin{verbatim}
+ sudo ln -s /usr/share/phpmyadmin /var/www
+\end{verbatim}
+
+despu\'es de esto ser\'a posible acceder a la aplicaci\'on \verb|phpmyadmin| desde el navegador con la ruta
+
+\begin{verbatim}
+http://localhost/phpmyadmin
+\end{verbatim}
+
+Una vez instalados todos los paquetes, es necesario reiniciar el sistema. Tras seguir los pasos anteriores el Pcduino estar\'a configurado para el sistema hidrop\'onico.
+
+\subsection{Configuraci\'on de red}
+El servidor necesita una ip fija; para esto se debe abrir el men\'u de inicio, pasar a 
+preferencias y luego pasar a las conexiones de red donde se edita la conexi\'on que se utilizar\'a. Para este caso se utiliza la conexi\'on por cable ethernet. 
+Para fijar la direcci\'on ip se debe editar la conexi\'on pasando a 
+la pesta\~na "ipv4" (internet protocol 
+version 4) y a\~nadiendo los datos correspondientes. Actualmente el Pcdino tiene la siguiente configuraci\'on:
+
+\begin{itemize}
+	\item ip: 10.10.254.78
+	\item Netmask: 255.255.0.0
+	\item Gateway: 10.10.255.254
+	\item DNS server: 8.8.8.8
+	\item Search domain: iies.unam.mx
+\end{itemize}
+
+Se debe reiniciar el Pcduino para que tomen efecto las configuraciones.
+
+\section{Drivers}
+Los drivers son los programas que permiten la comunicaci\'on del sistema con los sensores y 
+actuadores. Los drivers son funciones definidas en archivos cpp y declaradas en archivos hpp. El formato 
+que se escogi\'o para declarar
+funciones de lectura fue el siguiente: 
+
+\begin{verbatim}
+ float driver_sensor(int pin);
+\end{verbatim}
+
+donde el par\'ametro pin se refiere al puerto donde est\'a conectado el 
+sensor. Para el sensor de temperatura en agua, la funci\'on es diferente; 
+el par\'ametro de entrada es el identificador del sensor y todos los 
+sensores van conectados en paralelo al puerto GPIO 3. GPIO (General Purpose Input/Output, Entrada/Salida de prop\'osito General) es un pin gen\'erico en un chip, 
+cuyo 
+comportamiento (incluyendo si es un pin
+de entrada o salida) se puede controlar (programar) por el usuario en tiempo de ejecuci\'on. Para los 
+actuadores, se utilizaron 3 funciones:
+
+\begin{verbatim}
+void actuar(int seg,int pin,string mensaje)
+void activar(int pin,int pinData,int pinMode)
+void parar(int pinData,int pinMode)
+\end{verbatim}
+
+La funci\'on actuar recibe los siguientes par\'ametros: \verb|seg| son los segundos que debe funcionar el actuador, \verb|pin| es el puerto donde est\'a conectado el 
+actuador y \verb|mensaje| es un texto que sirve para llevar un registro de lo que se ejecuta. La funci\'on activar sirve 
+para encender el actuador por un tiempo indefinido y recibe los siguientes par\'ametros: \verb|pin| el puerto donde est\'a conectado el actuador, 
+\verb|pinData| es el identificador del archivo donde se almacena la informaci\'on del puerto y \verb|pinMode| es el identificador del archivo donde se define si el puerto 
+es de entrada o salida. Por \'ultimo, la funci\'on \verb|parar| es la contraparte de \verb|activar|, es decir, detiene un actuador que se encuentre activado. Para mayor 
+detalle, todos los drivers se encuentran 
+en 
+la carpeta
+\begin{verbatim}
+ Hidroponia/Codes/Drivers
+\end{verbatim}
+
+excepto el driver de temperatura en l\'iquidos, \'este se encuentra en la 
+direcci\'on
+
+\begin{verbatim}
+Support/c_environment/sample/temagua.c
+\end{verbatim}
+
+dentro de la carpeta del proyecto.
+
+\subsection{Protocolo para a\~nadir drivers}
+El protocolo consiste en agregar dos archivos a la carpeta
+
+\begin{verbatim}
+Hidroponia/Codes/Drivers
+\end{verbatim}
+
+un archivo \verb|driver.hpp| que contenga la declaraci\'on de las funciones con el formato anterior y otro archivo \verb|driver.cpp| donde est\'en definidas las funciones 
+del driver. Una vez agregados los archivos, se compila el driver ejecutando el binario \verb|comp| dentro de la carpeta \verb|Hidroponia| ingresando el comando:
+
+\begin{verbatim}
+./comp
+\end{verbatim}
+
+El binario \verb|comp| se genera del c\'odigo \verb|compiler.cpp| ubicado en la carpeta Codes. Para crear el binario, es necesario ejecutar dentro de la carpeta 
+\verb|Hidroponia| el siguiente comando:
+
+\begin{verbatim}
+make compiler
+\end{verbatim}
+
+El binario \verb|comp| compila 
+todos los archivos \verb|driver.cpp| que se encuentren en la carpeta \verb|Drivers| y a partir de ellos genera los archivos \verb|driver.o| los cuales contienen las 
+funciones declaradas; estos 
+son enviados a la carpeta \verb|Hidroponia/Objects|. Los objetos sirven para crear los ejecutables que usen los drivers. Una vez que est\'an hechos los 
+objetos, el programa \verb|comp| genera un archivo de librer\'ias 
+llamado \verb|libs.hpp| 
+donde se escriben todos los nombres de los archivos \verb|driver.hpp| que se encuentren en \verb|Drivers|, es decir, se genera un archivo que contiene los headers de todos 
+los drivers. El archivo 
+\verb|libs.hpp| es el 
+que se importa desde los otros c\'odigos para poder usar las funciones de los drivers. Cuando termina de ejecutarse \verb|comp|, se tienen los objetos que proveen las 
+funciones de los drivers y un 
+archivo \verb|libs.hpp| para usarlo desde las otras partes del proyecto. El protocolo se pretende automatizar usando el administrador de sistemas; sin embargo la 
+automatizaci\'on continua en 
+desarrollo y m\'as adelante se expondr\'a tanto el progreso alcanzado como los pasos para finalizarlo.
+
+\subsection{Sensores de temperatura en l\'iquidos}
+Los sensores de temperatura en l\'iquidos son controlados por un driver de 
+c\'odigo libre que se encuentra en Github; las instrucciones para su 
+instalaci\'on est\'an en la p\'agina del 
+distribuidor del duino (linksprite). Hay que descargar una carpeta y 
+ejecutar el comando \verb|make| que est\'a definido en el archivo \verb|makefile| dentro de la 
+carpeta que se descarg\'o previamente. El nombre de la carpeta es \verb|c_environment| y se coloc\'o en la ruta
+
+\begin{verbatim}
+ Hidroponia/Support/c_environment
+\end{verbatim}
+
+En la Carpeta Support se colocan las herramientas que est\'en programadas en otro lenguaje; este driver est\'a programado en  
+$C$. Dentro de la carpeta 
+
+\begin{verbatim}
+c_environment/sample
+\end{verbatim}
+
+se encuentran algunos drivers para 
+diferentes sensores arduino. Para este driver se utiliza el 
+archivo llamado
+
+\begin{verbatim}
+DS18x20_Temperature.c
+\end{verbatim}
+
+Dicho archivo genera un programa que captura lecturas de m\'ultiples sensores conectados en 
+un s\'olo puerto GPIO de manera continua y casi aleatoria. El 
+programa regresa varios datos para cada lectura: el identificador del 
+sensor, un valor en hexadecimal para verificar que la lectura sea 
+correcta y la lectura del sensor en celcius. Este driver no permite ejecutar lecturas de un sensor determinado, por lo que fue 
+necesario editar el c\'odigo. Se cre\'o una copia llamada
+
+\begin{verbatim}
+temagua.c
+\end{verbatim}
+
+para realizar sobre ella la edici\'on del c\'odigo y conservar el original. El c\'odigo se modific\'o para que se tomara s\'olo una lectura 
+confiable checando el hexadecimal de verificaci\'on; dicha lectura se guarda en un archivo 
+junto con el identificador del sensor que la realiz\'o. Para 
+crear los binarios de los drivers encontrados en la carpeta \verb|c_environment/sample|, se debe 
+ejecutar dentro de la carpeta \verb|c_environment| el comando
+
+\begin{verbatim}
+make
+\end{verbatim}
+
+para ejecutar el script en el archivo \verb|Makefile| situado en la carpeta. El script compila las 
+librer\'ias \verb|Arduino| necesarias para los drivers. Una vez que termina el 
+proceso de compilaci\'on de las librer\'ias, se debe pasar a la carpeta \verb|c_environment/sample| para editar el archivo \verb|Makefile| a\~nadiendo la siguiente l\'inea 
+de c\'odigo justo despu\'es de la \'ultima l\'inea an\'aloga:
+
+\begin{verbatim}
+OBJS += temagua
+\end{verbatim}
+
+Esta l\'inea de c\'odigo representa el comando para que se compile el archivo \verb|temagua.c| y se genere el ejecutable \verb|temagua|. Una vez editado el archivo 
+\verb|Makefile|, dentro de \verb|sample| se teclea el comando \verb|make| para ejecutar el script y crear el binario el cual es enviado a la carpeta 
+\verb|c_environment/output/test|. Para usar el driver 
+en el planificador de tareas, se cre\'o una funci\'on en $C++$ que obtiene la lectura de un determinado sensor. El pseudoc\'odigo de la 
+funci\'on es el siguiente:
+
+\begin{verbatim}
+Temperatura_en_liquido(sensor.id){
+  ejecutar temagua;
+  leer archivo;
+  while(lectura.id!=sensor.id){
+    ejecutar temagua;
+    leer archivo;
+    }
+  return lectura;
+  }fin driver
+\end{verbatim}
+
+Esta funci\'on representa el driver final, es decir, el que ser\'a utilizado por los dem\'as programas. La funci\'on devuelve la lectura en tipo \verb|float| y el 
+par\'ametro 
+\verb|sensor.id| 
+corresponde al identificador del sensor con el cual se efectuar\'a la 
+lectura. La declaraci\'on y definici\'on de la funci\'on se hizo en la carpeta \verb|Drivers| sobre los archivos 
+\verb|temagua.hpp| y \verb|temagua.cpp| respectivamente.
+
+\subsection{Sensor ph}
+El sensor de ph es un sensor de conversi\'on anal\'ogica-digital (adc en 
+ingl\'es). Para la calibraci\'on se tomaron 3 valores conocidos de ph y se ejecut\'o la lectura del sensor sin el driver para cada uno de ellos, obteniendo as\'i 3 puntos 
+experimentales. Cada punto experimental representa un par ordenado de voltaje medido por el sensor y el ph de la muestra. Una vez obtenidos los 3 puntos 
+experimentales, 
+se realiz\'o un ajuste lineal para obtener una recta que 
+representa el ph en funci\'on del voltaje medido por el sensor adc. La funci\'on 
+qued\'o de la siguiente manera:
+
+\begin{equation}
+	ph(V)=V \frac{14*0.8}{4096} 
+	\label{ph}
+\end{equation}
+
+donde $V$ representa el voltaje registrado 
+en el archivo correspondiente al puerto.
+
+\subsection{Temperatura y Humedad ambiente}
+La temperatura y la humedad ambiente nos las provee un s\'olo sensor, es el sensor DHT22 de arduino. El sensor es digital, por lo que ahora no se utilizan los puertos adc, 
+se usan los puertos GPIO. Lo que hace el driver es fijar el pin en modo output para despu\'es 
+capturar los bytes y procesarlos. El procesamineto de bytes devuelve lecturas de temperatura en celcius y humedad relativa en porcentaje (de 100). Es un s\'olo driver 
+pero se crearon dos funciones, 
+una para obtener la temperatura y otra para obtener la humedad. Las funciones se encuentran definidas y declaradas en los archivos \verb|temhum.cpp| y \verb|temhum.hpp|. La 
+separaci\'on de las funciones tiene el 
+fin de seguir el protocolo de funcionamiento de los drivers.
+
+\subsection{Humedad en tierra}
+El sensor de humedad en tierra es parecido al de ph, es del formato adc, consiste en 2 placas met\'alicas conectadas a una diferencia de potencial, cuando est\'an 
+sumergidas en agua se registra un voltaje $V_w$ al que le asociamos el 100\% de humedad y luego cuando las placas est\'an al aire se registra un voltaje $V_a$ al que le 
+asociamos el 0\% de humedad, por lo tanto tenemos 2 puntos $(V_w,100\%)$ y $(V_a,0\%)$ con los cuales se hace un ajuste lineal (una recta que pase por los 
+dos) y obtenemos:
+\begin{equation}
+	H(x)=\frac{100}{V_{w}-V_{a}}(V-V_{a})
+\end{equation}
+donde $H$ es la humedad en la tierra y $V$ es el voltaje registrado por el sensor. \'Este driver era utilizado para el sensor FC-28 de arduino, ahora se utiliza un sensor 
+similar creado por Diego Cabrer. Con el nuevo sensor, el driver responde correctamente al 
+0\% y al 100\%, para los valores intermedios arroja lecturas l\'ogicas, sin embargo ser\'ia interesante calibrar 
+el sensor con 9 muestras de tierra al $10\%, 20\%, 30\%, 40\%, 50\%, 60\%, 70\%, 80\%, 90\%$ de humedad y generar 11 puntos experimentales
+
+\begin{equation}
+(V_{a},0\%) , (V_{10\%},10\%), ... , (V_{w},100\%)
+\end{equation}
+
+para despu\'es hacer un ajuste (no necesariamente lineal) y obtener una mejor funci\'on $H(V)$.
+
+\section{Base de datos}
+La base de datos nos sirve para registrar toda la informaci\'on de los 
+sistemas: los actuadores y sensores, el tiempo y periodo de 
+riego, la temperatura del agua, el rango de temperatura y humedad 
+ambiente, entre otras cosas. La base tambi\'en registra las lecturas de 
+los sensores y las acciones que efect\'uan los actuadores. De las 
+lecturas se procesan los promedios por hora y se 
+guardan en una tabla de estad\'isticas.
+ 
+\subsection{Informaci\'on del sistema} 
+Para la informaci\'on de los sistemas tenemos varias tablas. La tabla 
+\verb|sistema| guarda la informaci\'on del sistema como nombre del sistema, cultivo, id del 
+sistema, url, ubicaci\'on y si es sistema principal o subsistema. La 
+tabla \verb|sensor| tiene la informaci\'on de los sensores: el tipo de sensor, 
+el pin del microprocesador al que est\'a conectado el sensor, 
+el periodo de muestreo y el identificador del sistema al que pertenece. La tabla \verb|actuador| tiene la informaci\'on de los actuadores: el pin al que est\'a conectado el 
+actuador, 
+el tipo de actuador y el identificador del sistema al que pertenece. La tabla \verb|riego| contiene la informaci\'on del
+ riego: el tiempo de riego, el periodo de riego y la temperatura del agua con la que se riega; existen 3 valores de tiempo, 3 valores para el periodo y 3 
+valores de temperatura del agua; cada uno relacionado con la temperatura ambiente, la relaci\'on se explicar\'a m\'as adelante. La tabla 
+\verb|planificacion| contiene 
+la informaci\'on del cultivo: nombre del cultivo, rango ideal de 
+temperatura y humedad ambiente, y rango de ph.
+
+\subsection{Monitoreo}
+Las tablas de monitoreos son 
+
+\begin{verbatim}
+monitoreo_actuador, monitoreo_sensor
+\end{verbatim}
+
+en la tabla \verb|monitoreo_sensor| se registran fecha, hora, valor de la lectura e id del sensor; 
+en la tabla \verb|monitoreo actuador| se registran fecha, hora, tipo de acci\'on y valor 
+de activaci\'on. El campo tipo acci\'on de monitoreo actuador se 
+refiere a encendio o apagado, 0 apagado y 1 encendido.
+
+\subsection{Estad\'isticas}
+La tabla \verb|estadistica_hora| se llena con los promedios por hora de los 
+registros \verb|monitoreo_sensor|. Los campos de esta tabla corresponden a la fecha, el tipo de sensor, el id sistema del cual se hacen los promedios y las horas del d\'ia. 
+Dentro de los campos de las horas del d\'ia se guardar\'a el promedio de las lecturas que se hayan efectuado a esa hora, por ejemplo, un registro quedarr\'ia de la 
+\begin{tabular}[h]{|l|l|l|l|l|l|}
+        \hline
+        fecha & tipo & sistema & 00 & ... & 23 \\ \hline
+        2018-05-15 & ph & 3 & 7.5 & ... & 8.1 \\  \hline
+\end{tabular}
+
+este registro indica el promedio de ph del sistema con id$=3$ a las 00 horas, 01 horas y as\'i sucesivamente hasta mostrar el promedio de ph a las 23 horas. La tabla se 
+actualiza mediante un trigger que se activa al introducirce un nuevo registro en la tabla \verb|monitoreo_sensor|. 
+
+\subsection{Conector c++ con mysql}
+Las consultas a la base de datos desde el planificador se hacen con \verb|Mysql/C++ connector|, es un driver que provee Mysql. El driver se instala con el paquete 
+\verb|libmysqlcppconn-dev|
+en la parte de configuraci\'on. Para ejecutar 
+consultas en paralelo, se cre\'o una clase llamada \verb|conector|, definida en el archivo \verb|Codes/conector.cpp| y declarada en \verb|Codes/Headers/conector.cpp|. 
+Las consultas dentro del programa se ejecutan de la siguiente manera:
+
+\begin{verbatim}
+conector C;
+C.conectar();
+//para ejecutar sin resultado
+C.stmt->execute("consulta");
+//con resultado
+C.res=C.stmt->executeQuery("consulta");
+//...hacer cosas
+C.borrar();
+\end{verbatim}
+
+
+\section{Herramientas del sistema}
+Las herramientas del sistema son un conjunto de estructuras y funciones usadas por el planificador de tareas y las pruebas del hardware; se 
+encuentran declaradas y definidas en los 
+archivos \verb|Codes/Headers/tools.cpp| y \verb|Codes/tools.cpp| respectivamente. Las estructuras m\'as importantes son: \verb|sensor|, 
+\verb|actuador| e \verb|hilo|; fueron definidas de la siguiente manera:
+
+\begin{verbatim}
+struct sensor{
+        int id,muestreo,pin,sys;
+        float valor;
+        string name;
+        };
+struct actuador{
+        int id,pin,seg,sys;
+        string name;
+        };
+struct hilo{
+        string name;
+        pid_t tid;
+        };
+\end{verbatim}
+Las variables en la estructura \verb|sensor| corresponden a la siguiente informaci\'on: 
+
+\begin{itemize}
+  \item \verb|id|: identificador del sensor, es un n\'umero entero.
+  \item \verb|muestreo|: los minutos entre cada muestreo (periodo de muestreo). 
+  \item \verb|pin|: el pin al que est\'e conectado el sensor.
+  \item \verb|sys|: el identificados del sistema al que pertenece el sensor.
+  \item \verb|valor|: es el valor de la variable de entorno que representa el sensor. 
+  \item \verb|name|: es el tipo de sensor, sirve para relacionar el sensor con el driver. 
+\end{itemize}
+
+La estructura \verb|actuador| 
+es an\'aloga a \verb|sensor| para las variables de \verb|id|, \verb|pin|, \verb|sys| y \verb|name|. Las variable diferente \verb|seg|, representa los segundos de acci\'on 
+del actuador. La estructura \verb|hilo| sirve para almacenar la informaci\'on de un thread; la variable \verb|name| guarda el nombre del thread y la variable \verb|tid| 
+(thread id) guarda el identificador del thread.
+
+\section{Pruebas hardware}
+Para verificar el funcionamiento de los sensores y actuadores se cre\'o el ejecutable \verb|Hardware_test|; definido en el archivo \verb|Codes/pruebas.cpp|. El ejecutable 
+carga 
+los sensores y actuadores registrados en la base de datos dentro de las estructuras definidas anteriormente. Una vez creados los objetos con la informaci\'on, se muestra un 
+men\'u donde se decide si se desea probar los actuadores o los sensores. 
+Posteriormente se muestra un men\'u y se debe escoger si emitir una prueba general o escoger el sensor/actuador que se desee probar. La interfaz gr\'afica es muy 
+rudimentaria, ser\'ia buena idea trabajar en este aspecto del proyecto. El ejecutable no tiene manera de hacer m\'ultiples pruebas o de suspender la ejecuci\'on de una 
+prueba, la soluci\'on ser\'ia ejecutar en threads las pruebas y 
+regresar al men\'u para decidir si ejecutar otra prueba o terminar alguna.
+
+\section{Planificador de tareas}
+El planificador de tareas es un ejecutable llamado \verb|Hidroponia| creado del c\'odigo \verb|scheduller.cpp| en la carpeta Codes. El ejecutable tiene un par\'ametro 
+entero que representa el identificador del sistema que se va a activar. Por ejemplo, dentro de la carpeta \verb|Hidroponia|, ejecutando el comando:
+
+\begin{verbatim}
+./Hidroponia 2
+\end{verbatim}
+
+se inicia el planificador de tareas para el sistema con identificador 2 en la tabla \verb|sistema| en la base de datos. Las tareas del sistema son las siguientes:
+
+\begin{enumerate}  
+	\item Capturar informaci\'on de la base 
+	\item Programar rutinas de los sensores
+	\item Programar el riego y los actuadores
+	\item Monitoreo de sensores y actuadores
+	\item Gestionar la ca\'ida de alg\'un thread
+\end{enumerate}
+
+\subsection{Captura de datos}
+La captura de datos comienza por la informaci\'on del sistema, partiendo del id se consulta lo que hay en la tabla \verb|sistema| y se guarda en una estructura 
+llamada \verb|sistema|. Despu\'es se 
+consulta su planificador y el riego para almacenar los datos en una clase llamada 
+\verb|planificador|, declarada en \verb|tools.hpp| y definida en \verb|tools.cpp|. Posteriormente se cuenta la cantidad de sensores y actuadores para crear dos arreglos de 
+estructuras \verb|sensor| y \verb|actuador| de tama\~nos respectivos; creados los arreglos se inicializan con la informaci\'on de cada sensor del sistema. Esta fase del 
+programa consiste en guardar la informaci\'on de la base de datos en las estructuras definidas en las herramientas del sistema (tools.cpp). 
+ 
+\subsection{Rutinas de los sensores}
+Lo siguiente es ejecutar las rutinas de muestreo, para cada sensor se lanza un thread que realiza dicha rutina. El pseudoc\'odigo del thread de muestreo es el siguiente:
+
+\begin{verbatim}
+Muestreo(sensor){
+  loop{
+    esperar el pin;
+    ocupar pin;
+    inicializar sensor.valor=-1;
+    intentos=0;
+    while(sensor.valor==-1){
+      indexar el sensor con su driver
+      if(sensor.name=tipo1){
+        sensor.valor=driver_tipo1(sensor.pin);
+        }
+      else if(sensor.name=tipo2){
+        sensor.valor=driver_tipo2(sensor.pin);
+        } 
+      ...
+      ...
+      else{
+        no hay driver;
+        exit;
+        }
+      if(sensor.valor==-1&intentos++<2){
+        reportar error;
+        }
+      }fin while
+    registrar lectura
+    en la base de datos;
+    liberar pin;
+    sleep(sensor.muestreo);
+    }fin loop
+}fin muestreo
+\end{verbatim}
+
+La edici\'on de este thread es la 
+\'ultima parte 
+de la automatizaci\'on del protocolo para a\~nadir drivers; se debe colocar la funci\'on en un archivo separado para editarlo, actualmente se encuentra en 
+\verb|Codes/scheduller.cpp| junto con todo el planificador. Para continuar con el protocolo se tendr\'ian que a\~nadir las siguientes l\'ineas de c\'odigo despu\'es 
+del \'ultimo \verb|else if| dentro del thread:
+
+\begin{verbatim}
+else if(sensor.name=="tipo_nuevo"){
+  sensor.valor=nuevo_driver(sensor.pin);
+  }
+\end{verbatim}
+
+despu\'es compilar la funci\'on en un objeto y actualizar las librer\'ias en el archivo \verb|libs.hpp|. Finalmente, actualizar los ejecutables \verb|Hardare_test| e 
+\verb|Hidroponia| para tener las pruebas del sistema y el planificador de tareas actualizados con el nuevo driver.
+
+\subsection{Actuadores}
+Los diferentes tipos de actuadores que soporta el sistema son:
+\begin{enumerate}
+	\item bomba de agua
+	\item calefactor del agua
+	\item ventilador
+	\item reguladores de ph
+\end{enumerate}
+y para cada uno est\'a definido un thread que se lanza s\'olo si se cubren determinados requerimentos. Para el riego existen 2 threads: uno se ejecuta 
+peri\'odicamente 
+de acuerdo a la informaci\'on del riego en la 
+base de datos y el otro se activa dependiendo la humedad de la tierra, si baja a determinado nivel se activa el riego hasta que la humedad vuelva a subir. El primer thread 
+de riego s\'olo 
+requiere una bomba de agua mientras que el otro requiere una bomba de agua y un sensor de humedad en tierra para poder ejecutarse. El thread del calefactor de agua requiere 
+un actuador de tipo calefacor y un sensor de temperatura en liquidos; el principio es el mismo que el segundo riego, si el agua baja a cierta temperatura se activa el 
+calefactor 
+hasta que se consiga una temperatura en el rango asignado por el planificador. El ventilador es an\'alogo, se activa a determinada temperatura ambiente y se desactiva 
+cuando la temperatura ambiente llega al rango ideal. Los reguladores de ph no se instalaron pero el thread debe ser creado de la misma manera que los otros 
+actuadores, para subir el ph ser\'ia
+
+\begin{verbatim}
+activar(regulador_phmas.pin);
+while(sensorph.valor<phminimo){
+  sleep(t);
+  sensorph.valor=lectura de ph;
+  }
+desactivar(regulador_phmas.pin3);
+\end{verbatim}
+
+igual para disminuir el ph pero ser\'ia \verb|while(sensorph.valor>phmax)|. La letra \verb|t| representa un peque\~no periodo de muestreo para saber cuando desactivar 
+el actuador correspondiente.
+
+\subsection{Sem\'aforos para los threads de muestreos}
+Dos de los problemas relacionados con el multithreading fueron deadlocks al momento de hacer consultas a la base y la concurrencia de threads que intentaban acceder al 
+mismo espacio de memoria en un determinado instante; dichos problemas causaban el fallo del sistema operativo. El primer problema se resolvi\'o con un 
+thread (sem\'aforo)
+encargado de ejecutar las consultas de monitoreo en orden. El sem\'aforo de los monitoreos consiste en una fila donde se insertan las 
+consultas en forma de strings y se van 
+ejecutando una por una. Para el segundo problema, el sem\'aforo consiste en un arreglo de valores booleanos y 3 pasos: esperar, usar y liberar. Cada elemento del 
+arreglo 
+corresponde a un pin del duino; si el elemento es verdadero quiere decir que el pin correspondiente al index del elemento est\'a ocupado. Cuando un thread quiere usar 
+el pin, debe consultar el arreglo para ver si est\'a ocupado, de ser as\'i debe esperar. La forma de usar un pin es la siguiente:
+
+\begin{verbatim}
+while(Pinbussy[4]){ //esperar }
+//establecer el pin ocupado
+Pinbussy[4]=true;
+
+...usar el pin
+
+//liberar el pin
+Pinbussy[4]=false;
+\end{verbatim}
+
+En este ejemplo el thread espera en el loop \verb|while| hasta que se libera el pin 4, saliendo del loop se fija el valor en true para establecerlo como ocupado; 
+posteriormente se utiliza el pin y se libera. Los sem\'aforos se encuentran 
+definidos en un thread llamado \verb|monitoreo| y en un conjunto de funciones llamadas \verb|usar(pin)|, \verb|liberar(pin)| y \verb|esperar(pin)|. El \'ultimo sem\'aforo 
+creado fue el administrador de sensores de temperatura en l\'iquidos. El driver del sensor de temperatura en l\'iquidos utiliza un archivo para su funcionamiento; cuando 
+dos threads intentaban acceder al archivo al mismo tiempo el sistema operativo colapsaba. El sem\'aforo es un programa que consulta los
+sensores de temperatura en l\'iquidos dados de alta para despu\'es efect\'uar lecturas con cada uno y posteriormente registrarlas 
+en la base de datos. Las muestras y los registros se efect\'uan de manera ordenada, un sensor a la vez, para evitar la convergencia de threads en el archivo de lecturas.
+
+\subsection{Recuperador de threads}
+Otro problema que surgi\'o con el multithreading fue la muerte del thread de monitoreo. A pesar del thread ca\'ido, el programa continu\'o en ejecuci\'on; no se registraban 
+los muestreos a la base de datos monitoreo. En aquel momento no hubo manera de rastrear el error que ocacion\'o el fallo del thread. Para poder rastear los errores y las 
+ca\'idas del thread fue necesario crear archivos log; uno para el registro de los procesos normales y otro para los errores. Los archivos log se crearon 
+redirigiendo las variables \verb|stdout| y \verb|stderr| hacia los archivos \verb|Hidroponia/Logs/logfile| y \verb|Hidroponia/Logs/errfile| respectivamente. Cada 
+planificador de tareas tiene su \verb|logfile| y \verb|errfile|, se encuentran diferenciados por el identificador del sistema al final del nombre del archivo. Para manejar 
+la 
+ca\'ida de threads se cre\'o un 
+reparador de threads dentro del loop principal del administrador de tareas. El pseudoc\'odigo es el siguiente:
+
+\begin{verbatim}
+
+main(int id_planificador){
+...cargar sensores y actuadores
+n=no. de threads;
+(usamos la estructura hilo)
+arreglo de hilos[n];
+...Ejecutar threads y guardar info 
+...en estructura hilo[i]
+loop{
+  for(i=0;i<n;i++){
+    if(!running(hilos[i].tid){
+      relanzar el thread;
+      reportar en logfile;
+      }end if
+    }end for
+  esperar media hora;
+  }end loop
+}end main
+\end{verbatim}
+
+En la rutina se verifica peri\'odicamente si cae alg\'un thread y en caso de caerse, relanzarlo y reportar. La funci\'on \verb|running(hilo.tid)| verifica si est\'a 
+corriendo un thread mediante su tid, se apoya de una carpeta que contiene archivos con informaci\'on de status para cada thread que sea ejecutado; la carpeta es 
+\verb|Hidroponia/Threads|. 
+El reparador de threads 
+es el loop principal del planificador de 
+tareas, mantiene el programa en ejecuci\'on; si llegara a caer el reparador de threads, caer\'ian todos los threads con \'el. Hace falta manejar la ca\'ida del thread 
+principal, debe ser programado en el sistema operativo; alg\'un script que est\'e ejecutando peri\'odicamente la opci\'on 2 del administrador de sistemas.
+
+\section{Generador de estad\'isticas}
+El generador de estad\'isticas es un ejecutable llamado \verb|stats| compilado del c\'odigo \verb|stats.cpp|. Lo que hace es generar peri\'odicamente los 
+promedios de las lecturas y registrarlos en la tabla \verb|estadistica_hora|. El pseudoc\'odigo del 
+generador de estad\'isticas es el siguiente:
+\begin{verbatim}
+loop{
+  consultar los sistemas activos;
+  para cada sistema{
+    consultar sensores registrados;
+    para cada sensor{
+      if(registros_sensor==0){
+        crear registro;
+        }
+      avg=promedio de lecturas 
+          en la hora actual;
+  update 
+   estadistica_hora.hora_actual=avg;
+      }fin sensores
+    }fin sistemas
+  esperar 20 minutos;
+  }fin loop;
+\end{verbatim}
+
+El programa fue reemplazado por el trigger que promedia en la hora con cada nuevo registro en la tabla \verb|monitoreo_sensor|.
+
+\section{Administrador de sistemas}
+El adminstrador de sistemas es un ejecutable llamado \verb|admin| definido en el c\'odigo \verb|manager.cpp| en la carpeta Codes. El administrador tiene 4 opciones, 3 de 
+ellas funcionales y 1 en desarrollo. Las opciones se ejecutan sobre la carpeta principal \verb|Hidroponia| de la siguiente manera:
+
+\begin{verbatim}
+./admin opc
+\end{verbatim}
+
+donde \verb|opc| es un entero que representa la opci\'on que se desea ejecutar. Las opciones son: ''2'' para actualizar los sistemas con la base de datos, ''3'' para 
+actualizar 
+los 
+drivers, 4 matar todo y 5 ejecutar las pruebas del hardware.
+
+\subsection{Opci\'on 2}
+La opci\'on 2 lo que hace es actualizar los ''schedullers'' en ejecuci\'on con la base de datos. El pseudoc\'odigo es el siguiente:
+
+\begin{verbatim}
+load_systems(){
+  get sistemas where estado=1;
+  for each sistema{
+    if(!running(sistema)){
+      ./Hidroponia sistema.id;
+      get subsistemas where estado=1;
+      for each subsistema{
+        if(!running(subsistema)){
+          ./Hidroponia subsistema.id;
+          }end if
+        }end subsistemas
+      }end if
+    }end sistemas
+  get sistemas with estado=0;
+  for each sistema{
+    if(running(sistema)){
+      kill(sistema);
+      get subsistemas;
+      for each subsistema{
+        kill(subsistema);
+        }end subsistemas
+      }end if
+    }end sistemas
+  if(!running(stats)){ ./stats }
+  if(!running(wateradmin)){ ./wateradmin }
+  }end load_systems
+\end{verbatim}
+
+Por lo tanto si quisieramos apagar o encender un determinado sistema lo 
+recomendable 
+ser\'ia editar el campo \verb|estado| en la base de datos y ejecutar la opci\'on 2 del administrador de sistemas.
+
+\subsection{Opci\'on 3}
+Esta opci\'on sigue en desarrollo, se ha comentado a lo largo del documento, sirve para automatizar el protocolo para a\~nadir un driver al sistema. Lo que se tiene hasta 
+ahora es la creaci\'on de los objetos con los archivos de la carpeta Drivers y la creaci\'on del archivo \verb|libs.hpp| que 
+contiene todos los headers; se logra con la ejecuci\'on del binario \verb|comp| sobre la carpeta \verb|Hidroponia|. Falta editar el c\'odigo del thread de muestreo y 
+actualizar los binarios \verb|Hidroponia| y 
+\verb|Hardware_test|.
+
+\subsection{Opci\'on 4}
+Esta opci\'on consulta todos los sistemas registrados en la base de datos y apaga cada uno de ellos. Tambi\'en termina los programas \verb|stats| y \verb|wateradmin|. 
+Se utiliza para reiniciar los sistemas, primero ejecutar opci\'on 4 y luego opci\'on 2.
+
+\subsection{Opci\'on 5}
+Es la opci\'on para ejecutar las pruebas del hardware. Esta opci\'on primero termina todos los sistemas con la opci\'on 4 y despu\'es ejecuta el 
+binario \verb|./Hardware_test| para correr las pruebas del hardware.
+
+\section{Makefile}
+El archivo \verb|makefile|, ubicado en la carpeta principal, contiene las definiciones de los comandos de compilaci\'on para las partes del proyecto. Al ejecutar el comando 
+\verb|make| se compilan todos los m\'odulos del sistema hidrop\'onico. Para compilar los m\'odulos por separado se ejecuta el comando \verb|make modulo| donde los 
+diferentes m\'odulos son:
+\begin{itemize}
+\item \verb|compiler|: compila el c\'odigo \verb|compiler.cpp| para hacer el ejecutable \verb|comp|.
+\item \verb|drivers|: ejecuta \verb|./comp| para crear los objetos.
+\item \verb|conector|: compila el archivo \verb|conector.cpp| para la clase conector.
+\item \verb|tools|: compila \verb|tools.cpp|.
+\item \verb|pruebas|: compila \verb|pruebas.cpp| para crear \verb|Hardware_test|.
+\item \verb|hidroponia|: compila \verb|scheduller.cpp| para crear el ejecutable \verb|Hidroponia|.
+\item \verb|manager|: compila \verb|manager.cpp| para crear \verb|admin|.
+\item \verb|statistics|: compila \verb|stats.cpp| para crear \verb|stats|.
+\item \verb|water|: compila \verb|wateradmin.cpp| para crear \verb|wateradmin|.
+\item \verb|clean|: borra los ejecutables.
+\end{itemize}
+
+Por ejemplo, para actualizar el planificador de tareas despu\'es de una modificaci\'on al c\'odigo, se debe ejecutar \verb|make hidroponia| sobre la carpeta principal 
+\verb|Hidroponia|.
+
+\section{Interfaz web}
+Se cre\'o una peque\~na interfaz gr\'afica provicional para agregar/editar sistemas, planificadores y riegos; tambi\'en 
+nos permite monitorear las lecturas de los sensores y las acciones de 
+los actuadores as\'i como las estad\'isticas generadas en la tabla \verb|estadistica_hora|. 
+Los c\'odigos de la interfaz se encuentran en la carpeta
+
+\begin{verbatim}
+/var/www/Proyecto/
+\end{verbatim}
+
+Para accesar a la interfaz desde el navegador, se debe ingresar en la barra de direcci\'on lo siguiente:
+
+\begin{verbatim}
+10.10.254.78/Proyecto
+\end{verbatim}
+
+Es importante resaltar que ser\'ia la ip que tuviera asignada el servidor.
+
+\subsection{Sistemas}
+En esta parte de la interfaz se registra/edita un sistema o subsistema. Al pasar a la p\'agina \verb|sistema.php| se muestra la opci\'on de editar un sistema o 
+crear uno nuevo. Para la opci\'on de editar se despliegan todos los sistemas registrados; si se desea editar un subsistema hay que escoger el sistema padre y despu\'es 
+el subsistema. En la parte de edici\'on del sistema o subsistema se encuentran las siguientes opciones:
+
+\begin{itemize}
+\item A\~nadir, quitar o modificar sensores y actuadores
+\item Editar la informaci\'on del sistema
+\item Cambiar de planificador o riego
+\item Encender el sistema
+\item Borrar el sistema
+\end{itemize}
+
+
+\subsection{Planificaciones y Riegos}
+An\'alogo a sistemas, se muestran allas opciones de crear o de editar planificaciones y riegos Los c\'odigos de las p\'aginas son \verb|planificador.php| y \verb|riego.php| 
+respectivamente.
+
+\subsection{Monitoreo}
+Es en el archivo \verb|monitoreo.php|, lo que hace el script es filtrar las tablas \verb|monitoreo_sensor| y \verb|monitoreo_actuador| pregunt\'andole al 
+usuario el sistema que desea monitorear, si desea monitorear sensores o actuadores, qu\'e tipo de sensor o actuador y el intervalo que desea monitorear. Una vez 
+que se fijan esas condiciones, se genera una consulta a la base de datos y se crean p\'aginas de 30 registros para visualizar las tablas de monitoreo filtradas. 
+Para mayor detalle consultar el c\'odigo \verb|monitoreo.php| en la carpeta de la interfaz.
+
+\subsection{Estadisticas}
+En esta parte de la interfaz se pueden visualizar los promedios de las variables de entorno respecto cada hora, d\'ia, semana o mes. Para la visualizaci\'on de promedios 
+por hora se hace una consulta a la base de datos de la tabla \verb|estadistica_hora| donde se guardan y se generan los promedios de las lecturas que est\'an en 
+\verb|monitoreo_sensor| de manera ordenada en registros diarios. Para la visualizaci\'on en d\'ias se consulta a la tabla \verb|monitoreo_sensor| el promedio de los 
+valores de cierto sensor a lo largo del d\'ia, an\'alogamente para semana y mes. Para mayor detalle de las consultas, revisar el c\'odigo \verb|estadisticas.php| 
+en 
+la carpeta de la interfaz.
+
+\end{document}

@@ -1,0 +1,36 @@
+el pid del sistema es: 1238
+rango ideal escogido
+-------------------------------------SISTEMA: Invernaderito
+subsistema: lechugas_con_micorrizas estado: 1
+subsistema: lechuas_sin_micorrizas estado: 1
+Id actuador ventilador: 3
+pin actuador ventilador: 5
+seg actuador ventilador: 5
+sistema: 1
+--------------------------------
+actuadores listos
+Id sensor humedad_ambiente: 1
+muestreo sensor humedad_ambiente: 10
+pin sensor humedad_ambiente: 6
+sistema: 1
+----------------------------
+Id sensor temperatura_ambiente: 2
+muestreo sensor temperatura_ambiente: 10
+pin sensor temperatura_ambiente: 6
+sistema: 1
+----------------------------
+sensores listos
+thread sensor humedad_ambiente creado con tid: 1240
+thread sensor temperatura_ambiente creado con tid: 1244
+thread monitoreo creado con tid: 1253
+creando hilo ventilador
+thread ventilador creado con tid: 1254
+Tids[0]= 1253
+Tids[1]= -1
+Tids[2]= -1
+Tids[3]= -1
+Tids[4]= 1254
+Tids[5]= -1
+Tids[6]= -1
+Tids[7]= 1240
+Tids[8]= 1244

@@ -1,0 +1,39 @@
+el pid del sistema es: 2104
+-----------------------------SUBSISTEMA: Invernaderito
+id sistema: 1
+id planificador: 1
+rango ambiente: 5
+id riego: 2
+cultivo: lechuga
+ph max: 6.5
+ph min: 5
+humedad maxima: 70
+humedad minima: 30
+temperatura ambiente: 20
+-----------------------RIEGO
+Periodo normal: 300
+tiempo normal: 1.5
+Temperatura normal: 15
+periodo mas: 60
+tiempo mas: 1
+Temperatura mas: 20
+periodo menos: 450
+tiempo menos: 1.5
+Temperatura menos: 20
+-------------------------------------------------
+Id sensor humedad_ambiente: 1
+muestreo sensor humedad_ambiente: 10
+pin sensor humedad_ambiente: 6
+sistema: 1
+----------------------------
+Id sensor temperatura_ambiente: 2
+muestreo sensor temperatura_ambiente: 10
+pin sensor temperatura_ambiente: 6
+sistema: 1
+----------------------------
+sensores listos
+Threads
+
+monitoreo con tid: 2117
+humedad_ambiente con tid: 2106
+temperatura_ambiente con tid: 2111

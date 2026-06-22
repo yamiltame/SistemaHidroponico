@@ -1,0 +1,70 @@
+el pid del sistema es: 1248
+-----------------------------SUBSISTEMA: lechugas_con_micorrizas
+id sistema: 2
+id planificador: 1
+rango ambiente: 5
+id riego: 2
+cultivo: lechuga
+ph max: 6.5
+ph min: 5
+humedad maxima: 70
+humedad minima: 30
+temperatura ambiente: 20
+-----------------------RIEGO
+Periodo normal: 300
+tiempo normal: 1.5
+Temperatura normal: 15
+periodo mas: 300
+tiempo mas: 1.5
+Temperatura mas: 20
+periodo menos: 300
+tiempo menos: 1.5
+Temperatura menos: 20
+-------------------------------------------------
+Id actuador bomba_agua: 1
+pin actuador bomba_agua: 7
+seg actuador bomba_agua: 5
+sistema: 2
+--------------------------------
+actuadores listos
+Id sensor ph: 3
+muestreo sensor ph: 60
+pin sensor ph: 2
+sistema: 2
+----------------------------
+Id sensor humedad_tierra: 7
+muestreo sensor humedad_tierra: 60
+pin sensor humedad_tierra: 4
+sistema: 2
+----------------------------
+Id sensor temperatura_agua: 9
+muestreo sensor temperatura_agua: 30
+pin sensor temperatura_agua: 3
+sistema: 2
+----------------------------
+sensores listos
+thread sensor ph creado con tid: 1250
+thread sensor humedad_tierra creado con tid: 1259
+thread sensor temperatura_agua creado con tid: 1265
+end thread sensor temperatura_agua
+index of temperatura ambiente on Sensors[]: -1
+index of humedad ambiente on Sensors[]: -1
+creando hilo riego
+thread monitoreo creado con tid: 1276
+creando hilo ph
+thread riego creado con tid: 1279
+thread para obtener valor global humedad_ambiente con tid:1278
+thread control ph creado con tid: 1280
+thread para obtener valor global temperatura_ambiente con tid:1277
+esperar lectura actual de humedad_ambiente
+esperar lectura actual de temperatura_ambiente
+Tids[0]= 1276
+Tids[1]= 1277
+Tids[2]= 1278
+Tids[3]= 1280
+Tids[4]= -1
+Tids[5]= -1
+Tids[6]= 1279
+Tids[7]= 1250
+Tids[8]= 1259
+Tids[9]= -1

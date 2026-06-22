@@ -1,0 +1,43 @@
+el pid del sistema es: 2136
+-----------------------------SUBSISTEMA: lechugas3
+id sistema: 4
+id planificador: 1
+rango ambiente: 5
+id riego: 2
+cultivo: lechuga
+ph max: 6.5
+ph min: 5
+humedad maxima: 70
+humedad minima: 30
+temperatura ambiente: 20
+-----------------------RIEGO
+Periodo normal: 300
+tiempo normal: 1.5
+Temperatura normal: 15
+periodo mas: 60
+tiempo mas: 1
+Temperatura mas: 20
+periodo menos: 450
+tiempo menos: 1.5
+Temperatura menos: 20
+-------------------------------------------------
+Id actuador bomba_agua: 4
+pin actuador bomba_agua: 5
+seg actuador bomba_agua: 5
+sistema: 4
+--------------------------------
+actuadores listos
+sensores listos
+index of temperatura ambiente on Sensors[]: -1
+index of humedad ambiente on Sensors[]: -1
+creando hilo riego
+bomba activada...
+Regando 1.000000 minutos
+Threads
+
+monitoreo con tid: 2165
+getvaluetemp con tid: 2166
+getvaluehum con tid: 2167
+riego con tid: 2168
+ con tid: 2138
+se vuelve a regar dentro de 60 minutos
