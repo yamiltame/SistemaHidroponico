@@ -20,6 +20,9 @@ string readline(int file, int &p){
         return line;
         }
 
+int nuevafuncion(){
+	return 0;
+	}
 
 int main(){
 	//se compilan los objetos de los drivers partiendo de los archivos .cpp en Drivers
