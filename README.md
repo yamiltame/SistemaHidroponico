@@ -1,0 +1,1 @@
+This project contains the codes and the manual for a program that runs a homemade hidroponic system. It was made within the ENES UNAM Morelia on a PAPIIT project. Inside the folder "Manual" you can find a pdf file with detailed info about the code and the configuration of the Pcduino.
